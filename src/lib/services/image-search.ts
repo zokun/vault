@@ -1,7 +1,9 @@
 /**
- * Google Custom Search API — fetches product images by query.
- * Requires GOOGLE_CUSTOM_SEARCH_API_KEY and GOOGLE_CUSTOM_SEARCH_CX in .env.
- * Returns an empty array (never throws) when keys are absent or on error.
+ * SerpApi — fetches Google Images results for a product query.
+ * Requires SERPAPI_KEY in .env.
+ * Returns an empty array (never throws) when the key is absent or on any error.
+ *
+ * SerpApi docs: https://serpapi.com/images-results
  */
 
 export interface ImageResult {
@@ -12,40 +14,36 @@ export interface ImageResult {
 }
 
 export async function searchProductImages(query: string): Promise<ImageResult[]> {
-  const apiKey = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY;
-  const cx = process.env.GOOGLE_CUSTOM_SEARCH_CX;
-
-  if (!apiKey || !cx) return [];
+  const apiKey = process.env.SERPAPI_KEY;
+  if (!apiKey) return [];
 
   const params = new URLSearchParams({
-    key: apiKey,
-    cx,
+    api_key: apiKey,
+    engine: "google_images",
     q: query,
-    searchType: "image",
     num: "8",
-    imgSize: "medium",
     safe: "active",
   });
 
   try {
     const res = await fetch(
-      `https://www.googleapis.com/customsearch/v1?${params.toString()}`,
+      `https://serpapi.com/search?${params.toString()}`,
       { next: { revalidate: 3600 } }
     );
 
     if (!res.ok) {
-      console.warn("[image-search] Google API error:", res.status, await res.text());
+      console.warn("[image-search] SerpApi error:", res.status);
       return [];
     }
 
     const json = await res.json();
-    const items: any[] = json.items ?? [];
+    const results: any[] = json.images_results ?? [];
 
-    return items.map((item) => ({
-      url: item.link,
-      thumbnailUrl: item.image?.thumbnailLink ?? item.link,
+    return results.slice(0, 8).map((item) => ({
+      url: item.original ?? item.thumbnail,
+      thumbnailUrl: item.thumbnail,
       title: item.title ?? query,
-      source: item.displayLink ?? "",
+      source: item.source ?? "",
     }));
   } catch (err) {
     console.error("[image-search] fetch error:", err);
