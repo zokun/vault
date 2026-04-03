@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAllItems, createItem } from "@/lib/services/items";
+import { enqueueJob } from "@/lib/jobs";
 
 const createItemSchema = z.object({
   name: z.string().min(1).max(200),
@@ -41,6 +42,12 @@ export async function POST(req: NextRequest) {
       );
     }
     const item = await createItem(parsed.data as any);
+
+    // Fire-and-forget background enrichment (does not block the response)
+    enqueueJob("enrich_item", { itemId: item.id }).catch((err) =>
+      console.error("[POST /api/items] Failed to enqueue enrichment:", err)
+    );
+
     return NextResponse.json({ data: item }, { status: 201 });
   } catch (err) {
     console.error("[POST /api/items]", err);
