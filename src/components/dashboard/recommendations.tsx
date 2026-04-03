@@ -48,7 +48,7 @@ export function Recommendations({ recommendations }: RecommendationsProps) {
           const Icon = config.icon;
           return (
             <Link
-              key={rec.itemId}
+              key={`${rec.itemId}-${rec.type}`}
               href={`/catalog/${rec.itemId}`}
               className="flex items-start gap-3 rounded-lg p-3 hover:bg-slate-50 transition-colors group"
             >
