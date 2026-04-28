@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Package,
+  Plus,
   Wrench,
   Tag,
   Vault,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -27,6 +29,16 @@ export function Sidebar() {
       <div className="flex h-14 items-center gap-2 border-b border-slate-200 px-4">
         <Vault className="h-6 w-6 text-slate-900" />
         <span className="text-lg font-bold tracking-tight">Vault</span>
+      </div>
+
+      {/* Add Item — accessible from any page */}
+      <div className="px-3 pt-3">
+        <Button asChild className="w-full justify-start" size="sm">
+          <Link href="/catalog/new">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Item
+          </Link>
+        </Button>
       </div>
 
       {/* Nav */}
