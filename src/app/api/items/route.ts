@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAllItems, createItem } from "@/lib/services/items";
-import { enqueueJob } from "@/lib/jobs";
+import { enqueueJob, processPendingJobs } from "@/lib/jobs";
 
 const createItemSchema = z.object({
   name: z.string().min(1).max(200),
-  description: z.string().optional(),
+  description: z.string().nullish(),
   category: z.string().default("other"),
   condition: z.enum(["new", "like_new", "good", "fair", "poor"]).default("good"),
-  purchaseDate: z.string().optional(),
-  purchasePrice: z.number().positive().optional(),
-  serialNumber: z.string().optional(),
-  brand: z.string().optional(),
-  model: z.string().optional(),
-  location: z.string().optional(),
-  notes: z.string().optional(),
+  purchaseDate: z.string().nullish(),
+  purchasePrice: z.number().positive().nullish(),
+  serialNumber: z.string().nullish(),
+  brand: z.string().nullish(),
+  model: z.string().nullish(),
+  location: z.string().nullish(),
+  notes: z.string().nullish(),
   photos: z.array(z.string()).default([]),
 });
 
@@ -43,10 +43,14 @@ export async function POST(req: NextRequest) {
     }
     const item = await createItem(parsed.data as any);
 
-    // Fire-and-forget background enrichment (does not block the response)
-    enqueueJob("enrich_item", { itemId: item.id }).catch((err) =>
-      console.error("[POST /api/items] Failed to enqueue enrichment:", err)
-    );
+    // Fire-and-forget background enrichment (does not block the response).
+    // Enqueue then immediately process so the job actually runs — the dev
+    // environment has no separate worker, so without this the queue stalls.
+    enqueueJob("enrich_item", { itemId: item.id })
+      .then(() => processPendingJobs())
+      .catch((err) =>
+        console.error("[POST /api/items] Background enrichment failed:", err)
+      );
 
     return NextResponse.json({ data: item }, { status: 201 });
   } catch (err) {

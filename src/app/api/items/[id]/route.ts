@@ -4,16 +4,16 @@ import { getItemById, updateItem, deleteItem } from "@/lib/services/items";
 
 const updateItemSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  description: z.string().optional(),
+  description: z.string().nullish(),
   category: z.enum(["electronics","furniture","clothing","appliances","tools","sports","books","vehicles","jewelry","art","collectibles","other"]).optional(),
   condition: z.enum(["new", "like_new", "good", "fair", "poor"]).optional(),
-  purchaseDate: z.string().optional(),
-  purchasePrice: z.number().positive().optional(),
-  serialNumber: z.string().optional(),
-  brand: z.string().optional(),
-  model: z.string().optional(),
-  location: z.string().optional(),
-  notes: z.string().optional(),
+  purchaseDate: z.string().nullish(),
+  purchasePrice: z.number().positive().nullish(),
+  serialNumber: z.string().nullish(),
+  brand: z.string().nullish(),
+  model: z.string().nullish(),
+  location: z.string().nullish(),
+  notes: z.string().nullish(),
   photos: z.array(z.string()).optional(),
 });
 
