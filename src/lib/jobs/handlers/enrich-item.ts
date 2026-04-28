@@ -11,7 +11,7 @@
 
 import { lookupItemByName } from "@/lib/ai/item-lookup";
 import { fetchMarketValues } from "@/lib/services/market-value";
-import { getItemById, updateItem } from "@/lib/services/items";
+import { getItemById } from "@/lib/services/items";
 import { db } from "@/lib/db";
 import { maintenanceRecords } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -51,25 +51,6 @@ export async function handleEnrichItem(payload: { itemId: number }): Promise<voi
         }))
       );
     }
-
-    // Append rental suitability and price range to notes if not already set
-    const rentalNote =
-      lookup.rentalSuitability === "high"
-        ? "Good candidate for renting out."
-        : lookup.rentalSuitability === "medium"
-        ? "May be suitable for renting out occasionally."
-        : "Not typically rented out.";
-
-    const priceNote =
-      lookup.typicalPriceMin && lookup.typicalPriceMax
-        ? ` Typical retail price: $${lookup.typicalPriceMin}–$${lookup.typicalPriceMax}.`
-        : "";
-
-    const enrichedNote = [item.notes, rentalNote + priceNote]
-      .filter(Boolean)
-      .join("\n\n");
-
-    await updateItem(itemId, { notes: enrichedNote });
   }
 
   console.log(`[enrich-item] Completed enrichment for item ${itemId}`);

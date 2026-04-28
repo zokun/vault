@@ -1,18 +1,17 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
-import { Upload, X, ImageIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 
 interface PhotoUploadProps {
   itemId: number;
+  /** Existing full photo list — POSTed back updated with the new uploads. */
   photos: string[];
   onPhotosChange: (photos: string[]) => void;
 }
 
-export function PhotoUpload({ itemId, photos, onPhotosChange }: PhotoUploadProps) {
+export function PhotoUpload({ itemId, onPhotosChange }: PhotoUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -44,19 +43,7 @@ export function PhotoUpload({ itemId, photos, onPhotosChange }: PhotoUploadProps
   };
 
   return (
-    <div className="space-y-3">
-      {/* Photo grid */}
-      {photos.length > 0 && (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-          {photos.map((src, i) => (
-            <div key={src} className="relative aspect-square rounded-md overflow-hidden bg-slate-100">
-              <Image src={src} alt={`Photo ${i + 1}`} fill className="object-cover" sizes="120px" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Upload button */}
+    <>
       <div
         className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 p-6 text-slate-500 hover:border-slate-300 cursor-pointer"
         onClick={() => inputRef.current?.click()}
@@ -76,6 +63,6 @@ export function PhotoUpload({ itemId, photos, onPhotosChange }: PhotoUploadProps
         className="hidden"
         onChange={handleFileChange}
       />
-    </div>
+    </>
   );
 }

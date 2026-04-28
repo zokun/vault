@@ -43,6 +43,12 @@ interface ItemFormProps {
   submitLabel?: string;
   /** Enable AI enrichment (debounced lookup as user types). Default: true for new items. */
   enableEnrichment?: boolean;
+  /**
+   * Pre-selected primary photo URL (e.g. one the user uploaded for AI ID before
+   * entering the form). Becomes the first photo on submit. The auto-select
+   * from web image search will not override this.
+   */
+  initialPrimaryPhotoUrl?: string | null;
 }
 
 const CATEGORIES: { value: ItemCategory; label: string }[] = [
@@ -74,6 +80,7 @@ export function ItemForm({
   isLoading,
   submitLabel = "Save Item",
   enableEnrichment,
+  initialPrimaryPhotoUrl,
 }: ItemFormProps) {
   // Enrichment is enabled by default only for new items (no existing id)
   const enrichmentEnabled = enableEnrichment ?? !defaultValues?.name;
@@ -105,8 +112,11 @@ export function ItemForm({
   const [enrichLoading, setEnrichLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<EnrichmentSuggestion | null>(null);
   const [images, setImages] = useState<ImageResult[]>([]);
-  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(
+    initialPrimaryPhotoUrl ?? null
+  );
   const [enrichDismissed, setEnrichDismissed] = useState(false);
+  const [imagesDismissed, setImagesDismissed] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastQueriedName = useRef<string>("");
 
@@ -126,6 +136,7 @@ export function ItemForm({
       lastQueriedName.current = trimmed;
       setEnrichLoading(true);
       setEnrichDismissed(false);
+      setImagesDismissed(false);
       try {
         const res = await fetch(
           `/api/enrich/lookup?name=${encodeURIComponent(trimmed)}`
@@ -133,7 +144,12 @@ export function ItemForm({
         if (!res.ok) return;
         const { data } = await res.json();
         if (data.metadata) setSuggestion(data.metadata);
-        if (data.images?.length) setImages(data.images);
+        if (data.images?.length) {
+          const top: ImageResult[] = data.images.slice(0, 5);
+          setImages(top);
+          // Auto-select the best (first) photo unless the user already picked one.
+          setSelectedImageUrl((cur) => cur ?? top[0]?.url ?? null);
+        }
       } catch {
         // Silently fail — enrichment is always optional
       } finally {
@@ -151,17 +167,25 @@ export function ItemForm({
     if (s.brand) setValue("brand", s.brand);
     if (s.model) setValue("model", s.model);
     if (s.description && !watch("description")) setValue("description", s.description);
-    if (s.typicalPriceMin && !watch("purchasePrice")) {
-      setValue("purchasePrice", String(s.typicalPriceMin));
-    }
+    // Intentionally don't touch purchasePrice — typicalPriceMin is retail/list,
+    // not what the user paid. The banner shows it as a reference instead.
     setEnrichDismissed(true);
+    // Don't dismiss images — keep the picker visible after applying suggestion
   };
 
   const handleFormSubmit = async (data: FormData) => {
     const basePhotos = defaultValues?.photos ?? [];
-    const photos = selectedImageUrl
-      ? [selectedImageUrl, ...basePhotos]
-      : basePhotos;
+
+    // Save the selected app photo first (becomes the primary thumbnail), then
+    // the rest of the displayed app candidates, then any pre-existing photos.
+    // Dedupe while preserving order so re-edits don't shuffle photos.
+    const appCandidates = images.map((img) => img.url);
+    const ordered = [
+      ...(selectedImageUrl ? [selectedImageUrl] : []),
+      ...appCandidates.filter((url) => url !== selectedImageUrl),
+      ...basePhotos,
+    ];
+    const photos = Array.from(new Set(ordered));
 
     await onSubmit({
       name: data.name,
@@ -182,7 +206,7 @@ export function ItemForm({
   const showBanner =
     enrichmentEnabled && !enrichDismissed && suggestion !== null;
   const showImages =
-    enrichmentEnabled && images.length > 0 && !enrichDismissed;
+    enrichmentEnabled && images.length > 0 && !imagesDismissed;
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">

@@ -43,6 +43,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import type { Item, MaintenanceRecord, RentalListing, MarketValueSummary } from "@/types";
 import { formatCurrency, calcDepreciation } from "@/lib/utils/currency";
 import { formatDate } from "@/lib/utils/date";
+import { cn } from "@/lib/utils/cn";
+
+// User-uploaded photos live under /uploads/ (written by /api/items/:id/photos).
+// Anything else (typically https://...) was supplied by the app via image search.
+function isUserPhoto(url: string): boolean {
+  return url.startsWith("/uploads/");
+}
 
 const conditionLabels: Record<string, string> = {
   new: "New",
@@ -196,6 +203,8 @@ export default function ItemDetailPage() {
   }
 
   const currentPhotos = photoOverride ?? item.photos;
+  const userPhotos = currentPhotos.filter(isUserPhoto);
+  const webPhotos = currentPhotos.filter((p) => !isUserPhoto(p));
   const depreciation =
     item.purchasePrice && item.purchaseDate
       ? calcDepreciation(item.purchasePrice, item.purchaseDate)
@@ -224,6 +233,7 @@ export default function ItemDetailPage() {
                   onSubmit={async (data) => { await updateMutation.mutateAsync(data); }}
                   isLoading={updateMutation.isPending}
                   submitLabel="Save Changes"
+                  enableEnrichment={true}
                 />
               </DialogContent>
             </Dialog>
@@ -368,27 +378,73 @@ export default function ItemDetailPage() {
                 </Card>
               </TabsContent>
 
-              {/* Photos tab */}
+              {/* Photos tab — split into two clearly-labeled sections so users
+                  can tell their own photos apart from web reference images. */}
               <TabsContent value="photos" className="mt-4">
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm font-medium">Photos</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {currentPhotos.length > 0 && (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-                        {currentPhotos.map((src, i) => (
-                          <div key={src} className="relative aspect-square rounded-lg overflow-hidden bg-slate-100">
-                            <Image src={src} alt={`Photo ${i + 1}`} fill className="object-cover" sizes="200px" />
-                          </div>
-                        ))}
+                  <CardContent className="p-6 space-y-8">
+                    {/* Your photos */}
+                    <section className="space-y-3">
+                      <div>
+                        <h3 className="text-sm font-medium text-slate-900">Your photos</h3>
+                        <p className="text-xs text-slate-500">
+                          Photos you&apos;ve taken of this item. These show its actual condition.
+                        </p>
                       </div>
+                      {userPhotos.length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {userPhotos.map((src, i) => (
+                            <div
+                              key={src}
+                              className="relative aspect-square rounded-lg overflow-hidden bg-slate-100 border-2 border-slate-300"
+                            >
+                              <Image
+                                src={src}
+                                alt={`Your photo ${i + 1}`}
+                                fill
+                                className="object-cover"
+                                sizes="200px"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <PhotoUpload
+                        itemId={item.id}
+                        photos={currentPhotos}
+                        onPhotosChange={setPhotoOverride}
+                      />
+                    </section>
+
+                    {/* Web reference photos — only shown when present. */}
+                    {webPhotos.length > 0 && (
+                      <section className="space-y-3 pt-6 border-t border-slate-200">
+                        <div>
+                          <h3 className="text-sm font-medium text-slate-900">
+                            Reference photos from the web
+                          </h3>
+                          <p className="text-xs text-slate-500">
+                            Stock images of this product — not photos of your specific item.
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {webPhotos.map((src, i) => (
+                            <div
+                              key={src}
+                              className="relative aspect-square rounded-lg overflow-hidden bg-slate-100 border-2 border-dashed border-slate-300"
+                            >
+                              <Image
+                                src={src}
+                                alt={`Reference ${i + 1}`}
+                                fill
+                                className="object-cover"
+                                sizes="200px"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </section>
                     )}
-                    <PhotoUpload
-                      itemId={item.id}
-                      photos={currentPhotos}
-                      onPhotosChange={setPhotoOverride}
-                    />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -439,16 +495,48 @@ export default function ItemDetailPage() {
 
           {/* Right column */}
           <div className="space-y-4">
-            {/* Item thumbnail */}
+            {/* Item thumbnails — primary photo + up to 4 alternates */}
             {currentPhotos[0] ? (
-              <div className="relative h-48 rounded-xl overflow-hidden bg-slate-100">
-                <Image
-                  src={currentPhotos[0]}
-                  alt={item.name}
-                  fill
-                  className="object-cover"
-                  sizes="400px"
-                />
+              <div className="space-y-2">
+                <div
+                  className={cn(
+                    "relative h-48 rounded-xl overflow-hidden bg-slate-100",
+                    isUserPhoto(currentPhotos[0])
+                      ? "border-2 border-slate-300"
+                      : "border-2 border-dashed border-slate-300"
+                  )}
+                >
+                  <Image
+                    src={currentPhotos[0]}
+                    alt={item.name}
+                    fill
+                    className="object-cover"
+                    sizes="400px"
+                  />
+                </div>
+                {currentPhotos.length > 1 && (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {currentPhotos.slice(1, 5).map((src, i) => (
+                      <div
+                        key={src}
+                        className={cn(
+                          "relative aspect-square rounded-md overflow-hidden bg-slate-100",
+                          isUserPhoto(src)
+                            ? "border-2 border-slate-300"
+                            : "border-2 border-dashed border-slate-300"
+                        )}
+                      >
+                        <Image
+                          src={src}
+                          alt={`${item.name} ${i + 2}`}
+                          fill
+                          className="object-cover"
+                          sizes="100px"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="h-48 rounded-xl bg-slate-100 flex items-center justify-center">
