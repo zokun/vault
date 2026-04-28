@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshCw, TrendingUp, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,21 +19,31 @@ interface PriceDisplayProps {
 export function PriceDisplay({ itemId, initialData }: PriceDisplayProps) {
   const [data, setData] = useState<MarketValueSummary | null>(initialData ?? null);
   const [loading, setLoading] = useState(false);
+  const autoFetched = useRef(false);
 
-  const refresh = async () => {
+  const refresh = async (silent = false) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/market-value/${itemId}`, { method: "POST" });
       if (!res.ok) throw new Error("Failed to fetch prices");
       const { data: summary } = await res.json();
       setData(summary);
-      toast.success("Market prices updated");
+      if (!silent) toast.success("Market prices updated");
     } catch {
-      toast.error("Could not fetch market prices");
+      if (!silent) toast.error("Could not fetch market prices");
     } finally {
       setLoading(false);
     }
   };
+
+  // Auto-fetch on mount if no cached data, so the user never has to click a button.
+  useEffect(() => {
+    if (autoFetched.current) return;
+    if (data) return;
+    autoFetched.current = true;
+    refresh(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Card>
@@ -56,10 +66,14 @@ export function PriceDisplay({ itemId, initialData }: PriceDisplayProps) {
       <CardContent className="space-y-4">
         {!data ? (
           <div className="text-center py-4">
-            <p className="text-sm text-slate-500 mb-3">No market data yet</p>
-            <Button size="sm" onClick={refresh} disabled={loading}>
-              {loading ? "Fetching prices..." : "Fetch Market Prices"}
-            </Button>
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                Fetching market prices...
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No market data available</p>
+            )}
           </div>
         ) : (
           <>

@@ -1,22 +1,22 @@
 /**
- * eBay (via SerpApi) — searches active eBay listings to estimate resale value.
+ * Google Shopping (via SerpApi) — searches retail listings to estimate
+ * current market price (typically new/refurbished, higher than used resale).
  *
- * Replaces the deprecated eBay Finding API. Uses SerpApi's eBay engine, which
- * is reliable and doesn't require a separate eBay developer account.
+ * Replaces the previous Craigslist scraper, which Craigslist now blocks.
  *
- * Docs: https://serpapi.com/ebay-search-api
+ * Docs: https://serpapi.com/google-shopping-api
  */
 
 import type { MarketValueResult } from "@/types";
 
-export async function fetchEbayPrices(
+export async function fetchGoogleShoppingPrices(
   query: string
 ): Promise<MarketValueResult> {
   const apiKey = process.env.SERPAPI_KEY;
 
   if (!apiKey) {
     return {
-      source: "ebay",
+      source: "google_shopping",
       price: 0,
       currency: "USD",
       url: null,
@@ -27,9 +27,10 @@ export async function fetchEbayPrices(
 
   const params = new URLSearchParams({
     api_key: apiKey,
-    engine: "ebay",
-    _nkw: query,
-    ebay_domain: "ebay.com",
+    engine: "google_shopping",
+    q: query,
+    hl: "en",
+    gl: "us",
   });
 
   try {
@@ -40,14 +41,14 @@ export async function fetchEbayPrices(
     if (!res.ok) throw new Error(`SerpApi error: ${res.status}`);
 
     const json = await res.json();
-    const results: Array<Record<string, any>> = json.organic_results ?? [];
+    const results: Array<Record<string, any>> = json.shopping_results ?? [];
 
     const prices: number[] = results
       .map((r) => {
-        const p = r.price;
-        if (typeof p === "number") return p;
-        if (p && typeof p === "object" && typeof p.extracted === "number") {
-          return p.extracted;
+        if (typeof r.extracted_price === "number") return r.extracted_price;
+        if (typeof r.price === "string") {
+          const m = r.price.match(/\$?([\d,]+\.?\d*)/);
+          return m ? parseFloat(m[1].replace(/,/g, "")) : null;
         }
         return null;
       })
@@ -55,34 +56,32 @@ export async function fetchEbayPrices(
 
     if (prices.length === 0) {
       return {
-        source: "ebay",
+        source: "google_shopping",
         price: 0,
         currency: "USD",
         url: null,
         confidence: 0,
-        error: "No listings with prices found",
+        error: "No shopping results with prices",
       };
     }
 
-    // Trim outliers — drop top/bottom 10% before averaging
+    // Median to suppress outliers (clearance, accessories priced as the item, etc.)
     const sorted = prices.slice().sort((a, b) => a - b);
-    const drop = Math.floor(sorted.length * 0.1);
-    const trimmed = sorted.slice(drop, sorted.length - drop);
-    const avg =
-      trimmed.reduce((a, b) => a + b, 0) / Math.max(1, trimmed.length);
+    const median = sorted[Math.floor(sorted.length / 2)];
 
-    const topUrl = results[0]?.link ?? null;
+    const topUrl =
+      results[0]?.link ?? results[0]?.product_link ?? null;
 
     return {
-      source: "ebay",
-      price: Math.round(avg * 100) / 100,
+      source: "google_shopping",
+      price: Math.round(median * 100) / 100,
       currency: "USD",
       url: topUrl,
-      confidence: Math.min(0.9, prices.length / 20),
+      confidence: Math.min(0.85, prices.length / 15),
     };
   } catch (err) {
     return {
-      source: "ebay",
+      source: "google_shopping",
       price: 0,
       currency: "USD",
       url: null,
